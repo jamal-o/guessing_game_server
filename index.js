@@ -1,13 +1,30 @@
-const app = require("src/server");
+const app = require("./src/app");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-
-const app = express();
+const PORT = process.env.PORT || 3000;
 const httpServer = createServer(app);
-const io = new Server(httpServer, { /* options */ });
 
-io.on("connection", (socket) => {
-  // ...
+const io = new Server(httpServer, {
+	cors: { origin: [process.env.CLIENT_URL] },
 });
 
-httpServer.listen(3000);
+const gameHandler = require("./src/game.handler");
+io.use((socket, next) => {
+	console.log("event registered" + socket.eventNames());
+	console.log();
+	next();
+});
+io.on("connection", (socket) => {
+
+	gameHandler(io, socket);
+
+	console.log("Connection established to socket" + socket.id);
+});
+
+io.on("disconnect", (reason) => {
+	console.log(`Disconnected: ${reason}`);
+});
+
+httpServer.listen(PORT, () => {
+	console.log(`Server running on ${PORT}...`);
+});
