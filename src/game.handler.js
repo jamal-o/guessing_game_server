@@ -1,29 +1,56 @@
-const {EVENTS} = require("./game.service");
+const { EVENTS, GameService, User } = require("./game.service");
 
 module.exports = (io, socket) => {
-	socket.on(EVENTS.user$create_game, createGame);
+	const roomService = new Map();
+	socket.on(
+		EVENTS.user$create_game,
+		errorWrapper(socket, ({ username, ack, } ,...args ) => {
+			let roomId;
+			do {
+				roomId = roomCode();
+			} while (socket.rooms.has(roomId));
 
-	socket.on(EVENTS.game$end_game, endGame);
+			socket.join(roomId);
+			const initialGM = new User({ name: username, id: socket.id });
+			roomService.set(roomId, new GameService({ roomId, initialGM }));
+			console.log(...args);
+			args[0](roomId);
+		})
+	);
+	// create-room (argument: room)
+	// delete-room (argument: room)
+	// join-room (argument: room, id)
+	// leave-room (argument: room, id)
+	// socket.on(
+	// 	EVENTS.game$end_game,
+	// 	errorWrapper(({ roomId, user }) => {
+	// 		socket.delete
+	// 	})
+	// );
 
-	socket.on(EVENTS.game$question_timeout, (url, targets) => {});
+	socket.on(EVENTS.game$question_timeout, () => {});
 
-	socket.on(EVENTS.game$update_scoreboard, (url, targets) => {});
+	socket.on(EVENTS.game$update_scoreboard, () => {});
 
-	socket.on(EVENTS.game$winner, (url, targets) => {});
+	socket.on(EVENTS.game$winner, () => {});
 
-	socket.on(EVENTS.player$guess, (url, targets) => {});
+	socket.on(EVENTS.player$guess, () => {});
 
-	socket.on(EVENTS.user$add_question, (url, targets) => {});
+	socket.on(EVENTS.user$add_question, () => {});
 
-	socket.on(EVENTS.user$exit_room, (url, targets) => {});
+	socket.on(EVENTS.user$exit_room, () => {});
 };
 
-createGame = () => {
-	try {
-		console.log("createGame");
-	} catch (error) {
-		socket.emit(EVENTS.game$error, error.message);
-	}
+errorWrapper = (socket, fn) => {
+	return (...args) => {
+		try {
+			fn(...args);
+		} catch (error) {
+			socket.emit(EVENTS.game$error, error.message);
+		}
+	};
 };
 
-endGame = (url, targets) => {};
+roomCode = () => {
+	return Math.floor(1000 + Math.random() * 9000);
+};

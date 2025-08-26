@@ -9,14 +9,21 @@ const io = new Server(httpServer, {
 });
 
 const gameHandler = require("./src/game.handler");
+const chatHandler = require("./src/chat.handler");
 io.use((socket, next) => {
 	console.log("event registered" + socket.eventNames());
 	console.log();
 	next();
 });
-io.on("connection", (socket) => {
 
+io.on("connection", (socket) => {
 	gameHandler(io, socket);
+
+	chatHandler(io, socket);
+
+	// socket.onAny((event, ...args) => {
+	// 	console.log(`Event: ${event}; args: ${args}`);
+	// });
 
 	console.log("Connection established to socket" + socket.id);
 });
