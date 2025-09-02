@@ -8,55 +8,77 @@ class GameService {
 		this.question = null;
 	}
 
-	addQuestion({ question, user }) {
-		if (user === undefined) {
+	addQuestion({ question, userId, duration = 60, callback }) {
+		if (userId === undefined) {
 			throw new GameError("Please provide a user");
 		}
-		if (user.id !== this.gameMaster.id) {
-			throw new GameError("You are not the Game master");
+		if (this.question !== null) {
+			throw new GameError("There is already an active question");
 		}
-		if (!question instanceof Question) {
+		if (userId !== this.gameMaster.id) {
+			throw new GameError("You are not the current Game master");
+		}
+		if (!(question instanceof Question)) {
 			throw new GameError("Invalid question");
 		}
+		this.timerId = setTimeout(() => {
+			question = null;
+
+			callback();
+		}, duration * 1000);
 		this.question = question;
 	}
 
-	answerQuestion({ user, answer }) {
-		let previousUserGuesses = this.userGuesses.get(user.id);
-		const userStore = this.users.get(user.id);
+	answerQuestion({ userId, answer }) {
+		let previousUserGuesses = this.userGuesses.get(userId);
+		const userStore = this.users.get(userId);
 		if (previousUserGuesses >= this.#maxGuess) {
-			throw GameError("Maximum guesses reached!");
+			throw new GameError("Maximum guesses reached!");
 		}
-		if (user.id === this.gameMaster.id) {
-			throw GameError("You are the Game master!");
+		if (userId === this.gameMaster.id) {
+			throw new GameError("You are the Game master!");
 		}
 
 		if (previousUserGuesses === undefined) {
 			userStore.questionsAttempted += 1;
-			this.userGuesses.set(user.id, 0);
+			this.userGuesses.set(userId, 0);
 			previousUserGuesses = 0;
 		}
 
 		if (this.question.isCorrectAnswer(answer)) {
 			console.log("Correct!");
+			clearTimeout(this.timerId);
+			this.timerId = null;
 			userStore.score += 10;
 			userStore.questionsCorrect += 1;
-			this.userGuesses.clear();
-			this.updateGameMaster();
+			this.nextQuestion();
 			return true;
 		} else {
 			previousUserGuesses = previousUserGuesses + 1;
+			this.userGuesses.set(userId, previousUserGuesses);
+
 			return false;
 		}
 	}
+
+	nextQuestion = () => {
+		this.userGuesses.clear();
+		this.updateGameMaster();
+	};
 
 	addUser(user) {
 		this.users.set(user.id, user);
 	}
 
-	updateUser({ id, user }) {
-		//refactor to allow only changing name
-		this.users[id] = user;
+	updateUserName({ id, name }) {
+		this.users.get(id).name = name;
+	}
+
+	userLeaveRoom({ id }) {
+		this.users.get(id).status = USER_STATUS.left;
+	}
+	userDisconnected({ id }) {
+		this.users.get(id).status = USER_STATUS.disconnected;
 	}
 
 	updateGameMaster() {
@@ -116,28 +138,6 @@ const USER_STATUS = {
 	left: "left",
 };
 
-const EVENTS = {
-	//player
-	player$guess: "player$guess,",
-
-	//game_master
-	user$create_game: "user$create_game",
-	user$add_question: "user$add_question",
-	user$skip_turn: "user$skip_turn",
-
-	//user
-	user$chat: "user$chat",
-	user$exit_room: "user$exit_room",
-	user$join_room: "user$join_room",
-
-	//game
-	game$update_scoreboard: "game$update_scoreboard",
-	game$question_timeout: "game$question_timeout",
-	game$winner: "game$winner",
-	game$end_game: "game$end_game",
-	game$error: "game$error",
-};
-
 class GameError extends Error {
 	constructor(message) {
 		super(message);
@@ -145,7 +145,6 @@ class GameError extends Error {
 }
 
 module.exports = {
-	EVENTS,
 	GameError,
 	User,
 	USER_STATUS,

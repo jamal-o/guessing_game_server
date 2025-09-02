@@ -1,4 +1,4 @@
-const { EVENTS } = require("./game.service");
+const EVENTS  = require("./events");
 
 module.exports = (io, socket) => {
 	socket.on(EVENTS.user$chat, ({ message, roomId }) => {
