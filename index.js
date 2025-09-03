@@ -8,11 +8,13 @@ const io = new Server(httpServer, {
 	cors: { origin: [process.env.CLIENT_URL] },
 });
 
-const gameHandler = require("./src/game.handler");
+const { gameHandler } = require("./src/game.handler");
+
+const sendUserActiveRooms = require("./src/game.handler").sendUserActiveRooms;
 const chatHandler = require("./src/chat.handler");
 io.use((socket, next) => {
 	console.log("event registered " + socket.eventNames());
-	
+
 	next();
 });
 
@@ -20,6 +22,8 @@ io.on("connection", (socket) => {
 	gameHandler(io, socket);
 
 	chatHandler(io, socket);
+
+	sendUserActiveRooms(io, socket);
 
 	// socket.onAny((event, ...args) => {
 	// 	console.log(`Event: ${event}; args: ${args}`);

@@ -1,7 +1,7 @@
 const { GameService, User, Question } = require("./game.service");
 const EVENTS = require("./events");
 const { Response } = require("./Response");
-module.exports = (io, socket) => {
+exports.gameHandler = (io, socket) => {
 	const roomService = new Map();
 	socket.on(
 		EVENTS.user$create_game,
@@ -19,21 +19,26 @@ module.exports = (io, socket) => {
 			//acknoledgement sending back room id
 			args[0](roomId);
 
+			updateScoreboard(roomId);
 			updateActiveRooms();
 		})
 	);
 
 	socket.on(
 		EVENTS.user$join_room,
-		errorWrapper(socket, ({ roomId, userName }, ...args) => {
-			socket.join(roomId);
+		errorWrapper(socket, ({ roomId, username }, ...args) => {
+			const service = roomService.get(roomId);
 
-			roomService
-				.get(roomId)
-				.addUser(new User({ name: userName, id: socket.id }));
+			if (!service) {
+				args[0](false);
+				return;
+			}
+			socket.join(roomId);
+			service.addUser(new User({ name: username, id: socket.id }));
 			// acknowledge success
 			args[0](true);
 			updateScoreboard(roomId);
+			updateActiveRooms();
 		})
 	);
 
@@ -49,6 +54,7 @@ module.exports = (io, socket) => {
 				return;
 			}
 			updateScoreboard(roomId);
+			updateActiveRooms();
 		})
 	);
 	socket.on(
@@ -64,9 +70,14 @@ module.exports = (io, socket) => {
 					question: questionModel,
 				});
 			};
-			roomService
-				.get(roomId)
-				.addQuestion({ questionModel, userId: socket.id, duration, callback });
+			roomService.get(roomId).addQuestion({
+				question: questionModel,
+				userId: socket.id,
+				duration,
+				callback,
+			});
+
+			updateActiveQuestion(roomId, questionModel);
 		})
 	);
 
@@ -90,17 +101,28 @@ module.exports = (io, socket) => {
 		}
 	});
 
+	updateActiveQuestion = (roomId, questionModel) => {
+		const payload = new Response("New Question Added", {
+			data: {
+				text: questionModel.text,
+			},
+		}).valueOf();
+		io.in(roomId).emit(EVENTS.game$new_question, payload);
+	};
 	updateActiveRooms = () => {
 		const activeRooms = Array.from(io.sockets.adapter.rooms.keys()).filter(
 			(key) => typeof key === "string" && key.length === 4
 		);
+		const data = activeRooms.map((room) => {
+			return { roomId: room };
+		});
 		io.emit(
 			EVENTS.game$rooms,
-			new Response("Active Rooms", { data: activeRooms }).valueOf()
+			new Response("Active Rooms", { data: { rooms: data } }).valueOf()
 		);
 	};
 	updateScoreboard = (roomId) => {
-		const scoreboard = roomService.get(roomId).scoreboard();
+		const scoreboard = roomService.get(roomId)?.scoreboard();
 		io.in(roomId).emit(
 			EVENTS.game$update_scoreboard,
 			new Response("Updated scoreboard", { data: scoreboard })
@@ -113,10 +135,24 @@ errorWrapper = (socket, fn) => {
 		try {
 			fn(...args);
 		} catch (error) {
-			socket.emit(EVENTS.game$error, error.message);
+			socket.emit(EVENTS.game$error, error);
 		}
 	};
 };
+
 roomCode = () => {
 	return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+exports.sendUserActiveRooms = (io, socket) => {
+	const activeRooms = Array.from(io.sockets.adapter.rooms.keys()).filter(
+		(key) => typeof key === "string" && key.length === 4
+	);
+	const data = activeRooms.map((room) => {
+		return { roomId: room };
+	});
+	socket.emit(
+		EVENTS.game$rooms,
+		new Response("Active Rooms", { data: { rooms: data } }).valueOf()
+	);
 };

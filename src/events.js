@@ -6,6 +6,7 @@ module.exports = {
 	user$create_game: "user$create_game",
 	user$add_question: "user$add_question",
 	user$skip_turn: "user$skip_turn",
+	
 
 	//user
 	user$chat: "user$chat",
@@ -18,5 +19,6 @@ module.exports = {
 	game$winner: "game$winner",
 	game$end_game: "game$end_game",
 	game$error: "game$error",
-    game$rooms: "game$active_room"
+    game$rooms: "game$rooms",
+	game$new_question: "game$new_question",
 };

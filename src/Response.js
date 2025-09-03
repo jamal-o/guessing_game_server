@@ -7,9 +7,9 @@ class Response {
 
 	valueOf() {
 		return {
-			message,
-			success,
-			data,
+			message: this.message,
+			success: this.success,
+			data: this.data,
 		};
 	}
 }
