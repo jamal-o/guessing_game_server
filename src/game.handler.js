@@ -1,11 +1,13 @@
 const { GameService, User, Question } = require("./game.service");
 const EVENTS = require("./events");
+const { Response } = require("./Response");
 module.exports = (io, socket) => {
 	const roomService = new Map();
 	socket.on(
 		EVENTS.user$create_game,
 		errorWrapper(socket, ({ username }, ...args) => {
 			let roomId;
+
 			do {
 				roomId = roomCode();
 			} while (socket.rooms.has(roomId));
@@ -13,16 +15,14 @@ module.exports = (io, socket) => {
 			socket.join(roomId);
 			const initialGM = new User({ name: username, id: socket.id });
 			roomService.set(roomId, new GameService({ roomId, initialGM }));
-			console.log(...args);
+
 			//acknoledgement sending back room id
 			args[0](roomId);
 
-			socket.emit(
-				EVENTS.game$active_rooms,
-				new Response("Active Rooms", { data: socket.rooms.keys() })
-			);
+			updateActiveRooms();
 		})
 	);
+
 	socket.on(
 		EVENTS.user$join_room,
 		errorWrapper(socket, ({ roomId, userName }, ...args) => {
@@ -90,6 +90,15 @@ module.exports = (io, socket) => {
 		}
 	});
 
+	updateActiveRooms = () => {
+		const activeRooms = Array.from(io.sockets.adapter.rooms.keys()).filter(
+			(key) => typeof key === "string" && key.length === 4
+		);
+		io.emit(
+			EVENTS.game$rooms,
+			new Response("Active Rooms", { data: activeRooms }).valueOf()
+		);
+	};
 	updateScoreboard = (roomId) => {
 		const scoreboard = roomService.get(roomId).scoreboard();
 		io.in(roomId).emit(
@@ -111,19 +120,3 @@ errorWrapper = (socket, fn) => {
 roomCode = () => {
 	return Math.floor(1000 + Math.random() * 9000).toString();
 };
-
-class Response {
-	constructor(message, options = {}) {
-		this.message = message;
-		this.success = options.success || true;
-		this.data = options.data;
-	}
-
-	valueOf() {
-		return {
-			message,
-			success,
-			data,
-		};
-	}
-}

@@ -18,5 +18,5 @@ module.exports = {
 	game$winner: "game$winner",
 	game$end_game: "game$end_game",
 	game$error: "game$error",
-    game$active_rooms: "game$active_room"
+    game$rooms: "game$active_room"
 };

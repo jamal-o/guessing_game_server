@@ -11,8 +11,8 @@ const io = new Server(httpServer, {
 const gameHandler = require("./src/game.handler");
 const chatHandler = require("./src/chat.handler");
 io.use((socket, next) => {
-	console.log("event registered" + socket.eventNames());
-	console.log();
+	console.log("event registered " + socket.eventNames());
+	
 	next();
 });
 
@@ -25,7 +25,7 @@ io.on("connection", (socket) => {
 	// 	console.log(`Event: ${event}; args: ${args}`);
 	// });
 
-	console.log("Connection established to socket" + socket.id);
+	console.log("Connection established to socket: " + socket.id);
 });
 
 io.on("disconnect", (reason) => {
