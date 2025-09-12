@@ -1,6 +1,6 @@
 module.exports = {
 	//player
-	player$guess: "player$guess,",
+	player$guess: "player$guess",
 
 	//game_master
 	user$create_game: "user$create_game",
@@ -18,7 +18,7 @@ module.exports = {
 	game$question_timeout: "game$question_timeout",
 	game$winner: "game$winner",
 	game$end_game: "game$end_game",
-	game$error: "game$error",
+	game$alert: "game$alert",
     game$rooms: "game$rooms",
 	game$new_question: "game$new_question",
 };

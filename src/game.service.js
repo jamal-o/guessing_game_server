@@ -22,7 +22,7 @@ class GameService {
 			throw new GameError("Invalid question");
 		}
 		this.timerId = setTimeout(() => {
-			question = null;
+			this.question = null;
 
 			callback();
 		}, duration * 1000);
@@ -37,6 +37,10 @@ class GameService {
 		}
 		if (userId === this.gameMaster.id) {
 			throw new GameError("You are the Game master!");
+		}
+
+		if (this.question === null) {
+			throw new GameError("There is no active question");
 		}
 
 		if (previousUserGuesses === undefined) {
@@ -63,6 +67,7 @@ class GameService {
 
 	nextQuestion = () => {
 		this.userGuesses.clear();
+		this.question = null;
 		this.updateGameMaster();
 	};
 

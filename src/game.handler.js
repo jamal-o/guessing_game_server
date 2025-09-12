@@ -1,8 +1,8 @@
 const { GameService, User, Question } = require("./game.service");
 const EVENTS = require("./events");
 const { Response } = require("./Response");
+const roomService = new Map();
 exports.gameHandler = (io, socket) => {
-	const roomService = new Map();
 	socket.on(
 		EVENTS.user$create_game,
 		errorWrapper(socket, ({ username }, ...args) => {
@@ -36,23 +36,60 @@ exports.gameHandler = (io, socket) => {
 			socket.join(roomId);
 			service.addUser(new User({ name: username, id: socket.id }));
 			// acknowledge success
+			socket.to(roomId).emit(
+				EVENTS.user$chat,
+				new Response("User Joined", {
+					data: {
+						text: `${username} has joined`,
+						username: "bot",
+						time: new Date(),
+					},
+				}).valueOf()
+			);
 			args[0](true);
 			updateScoreboard(roomId);
 			updateActiveRooms();
+			const questionModel = service.question;
+			updateActiveQuestion(roomId, questionModel);
 		})
 	);
+	socket.on("disconnect", (reason) => {
+		socket.rooms.forEach((roomId) => {
+			roomService.get(roomId).userDisconnected({ id: socket.id });
+			updateScoreboard(roomId);
+			updateActiveRooms();
 
+			// if (roomService.get(roomId).length == 0) {
+			// 	//TODO: end the game
+			// 	console.log("Close Room");
+			// 	return;
+			// }
+		});
+		console.log(`Socket ${socket.id} disconnected: ${reason}`);
+	});
 	socket.on(
 		EVENTS.user$exit_room,
 		errorWrapper(socket, ({ roomId }) => {
+			const user = roomService.get(roomId).users.get(socket.id);
+			socket.to(roomId).emit(
+				EVENTS.user$chat,
+				new Response("User left", {
+					data: {
+						text: `${user.name} has left`,
+						username: "bot",
+						time: new Date(),
+					},
+				}).valueOf()
+			);
 			socket.leave(roomId);
-			roomService.get(roomId).userLeaveRoom(socket.id);
+			// socket.removeAllListeners();
+			roomService.get(roomId).userLeaveRoom({ id: socket.id });
 
-			if (socket.rooms.get(roomId).length == 0) {
-				//TODO: end the game
-				console.log("Close Room");
-				return;
-			}
+			// if (socket.rooms.get(roomId).length == 0) {
+			// 	//TODO: end the game
+			// 	console.log("Close Room");
+			// 	return;
+			// }
 			updateScoreboard(roomId);
 			updateActiveRooms();
 		})
@@ -60,6 +97,10 @@ exports.gameHandler = (io, socket) => {
 	socket.on(
 		EVENTS.user$add_question,
 		errorWrapper(socket, ({ question, roomId, duration = 60 }) => {
+			if (roomService.get(roomId).users.size < 2) {
+				throw new Error("Atleast 2 players required to start the game");
+				return;
+			}
 			const questionModel = new Question({
 				text: question["text"],
 				answer: question["answer"],
@@ -69,6 +110,9 @@ exports.gameHandler = (io, socket) => {
 					message: "Question timeout",
 					question: questionModel,
 				});
+
+				updateActiveQuestion(roomId, null);
+				updateScoreboard(roomId);
 			};
 			roomService.get(roomId).addQuestion({
 				question: questionModel,
@@ -81,32 +125,48 @@ exports.gameHandler = (io, socket) => {
 		})
 	);
 
-	socket.on(EVENTS.player$guess, ({ answer, roomId }, ...args) => {
-		const ack = args[0];
-		const isCorrect = roomService.get(roomId).answerQuestion({
-			userId: socket.id,
-			answer,
-		});
+	socket.on(
+		EVENTS.player$guess,
+		errorWrapper(socket, ({ answer, roomId }, ...args) => {
+			const isCorrect = roomService.get(roomId).answerQuestion({
+				userId: socket.id,
+				answer,
+			});
 
-		if (isCorrect) {
-			const user = roomService.get(roomId).users.get(socket.id);
-			ack(new Response("Correct Answer!"));
-			socket
-				.to(roomId)
-				.emit(EVENTS.game$winner, new Response("Winner", { data: user }));
-			updateScoreboard(roomId);
-		} else {
-			const userGuesses = roomService.get(roomId).userGuesses.get(socket.id);
-			ack(new Response(`Incorrect Answer!: ${userGuesses} left`));
-		}
-	});
+			if (isCorrect) {
+				const user = roomService.get(roomId).users.get(socket.id);
+				// new Response("Correct Answer!");
+				socket.to(roomId).emit(
+					EVENTS.game$winner,
+					new Response("Winner", {
+						data: { username: user.username, score: user.score },
+					})
+				);
+				updateActiveQuestion(roomId, null);
+				updateScoreboard(roomId);
+			} else {
+				const userGuesses = roomService.get(roomId).userGuesses.get(socket.id);
+				socket.emit(
+					EVENTS.game$alert,
+					new Response(`Incorrect Answer!: ${userGuesses - 3} left`, {
+						data: {
+							text: `Incorrect Answer!: ${userGuesses - 3} left`,
+						},
+					})
+				);
+			}
+		})
+	);
 
 	updateActiveQuestion = (roomId, questionModel) => {
-		const payload = new Response("New Question Added", {
-			data: {
-				text: questionModel.text,
-			},
-		}).valueOf();
+		const payload =
+			questionModel === null
+				? new Response("No active question", { data: { text: null } }).valueOf()
+				: new Response("New Question Added", {
+						data: {
+							text: questionModel?.text,
+						},
+				  }).valueOf();
 		io.in(roomId).emit(EVENTS.game$new_question, payload);
 	};
 	updateActiveRooms = () => {
@@ -125,7 +185,7 @@ exports.gameHandler = (io, socket) => {
 		const scoreboard = roomService.get(roomId)?.scoreboard();
 		io.in(roomId).emit(
 			EVENTS.game$update_scoreboard,
-			new Response("Updated scoreboard", { data: scoreboard })
+			new Response("Updated scoreboard", { data: scoreboard }).valueOf()
 		);
 	};
 };
@@ -135,7 +195,15 @@ errorWrapper = (socket, fn) => {
 		try {
 			fn(...args);
 		} catch (error) {
-			socket.emit(EVENTS.game$error, error);
+			socket.emit(
+				EVENTS.game$alert,
+				new Response(`${error.toString()} `, {
+					success: false,
+					data: {
+						text: `${error.toString()} `,
+					},
+				}).valueOf()
+			);
 		}
 	};
 };

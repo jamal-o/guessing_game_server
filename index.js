@@ -25,9 +25,10 @@ io.on("connection", (socket) => {
 
 	sendUserActiveRooms(io, socket);
 
-	// socket.onAny((event, ...args) => {
-	// 	console.log(`Event: ${event}; args: ${args}`);
-	// });
+	socket.onAny((event, ...args) => {
+		console.log(`Event: ${event}; args: ${JSON.stringify(args)}`);
+	});
+
 
 	console.log("Connection established to socket: " + socket.id);
 });
