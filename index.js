@@ -2,7 +2,12 @@ const app = require("./src/app");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const PORT = process.env.PORT || 3000;
-const httpServer = createServer(app);
+const httpServer = createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    data: 'Hello World!',
+  }));
+});;
 
 const path = require("path");
 const fs = require("fs");
@@ -50,5 +55,5 @@ io.on("disconnect", (reason) => {
 });
 
 httpServer.listen(PORT, () => {
-	console.log(`Server running on ${PORT}...`);
+	console.log(`Server running on Port: ${PORT}...`);
 });
