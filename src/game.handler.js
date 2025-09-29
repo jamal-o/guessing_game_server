@@ -136,10 +136,11 @@ exports.gameHandler = (io, socket) => {
 			if (isCorrect) {
 				const user = roomService.get(roomId).users.get(socket.id);
 				// new Response("Correct Answer!");
+				// console.log(JSON.stringify(user));
 				socket.to(roomId).emit(
 					EVENTS.game$winner,
 					new Response("Winner", {
-						data: { username: user.username, score: user.score },
+						data: { username: user.name, score: user.score },
 					})
 				);
 				updateActiveQuestion(roomId, null);
@@ -170,11 +171,12 @@ exports.gameHandler = (io, socket) => {
 		io.in(roomId).emit(EVENTS.game$new_question, payload);
 	};
 	updateActiveRooms = () => {
-		const activeRooms = Array.from(io.sockets.adapter.rooms.keys()).filter(
+		const rooms = io.sockets.adapter.rooms;
+		const activeRooms = Array.from(rooms.keys()).filter(
 			(key) => typeof key === "string" && key.length === 4
 		);
 		const data = activeRooms.map((room) => {
-			return { roomId: room };
+			return { roomId: room , players: rooms.get(room).size };
 		});
 		io.emit(
 			EVENTS.game$rooms,
