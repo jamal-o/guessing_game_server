@@ -4,6 +4,19 @@ const { Server } = require("socket.io");
 const PORT = process.env.PORT || 3000;
 const httpServer = createServer(app);
 
+const path = require("path");
+const fs = require("fs");
+
+const NODE_ENV = process.env.NODE_ENV || "development";
+const envFilePath = path.resolve(__dirname, `.env.${NODE_ENV}`);
+if (fs.existsSync(envFilePath)) {
+	require("dotenv").config({ path: envFilePath });
+	console.log(`Loaded env: ${envFilePath}`);
+} else {
+	require("dotenv").config();
+	console.log("Loaded default .env");
+}
+
 const io = new Server(httpServer, {
 	cors: { origin: [process.env.CLIENT_URL] },
 });
@@ -28,7 +41,6 @@ io.on("connection", (socket) => {
 	socket.onAny((event, ...args) => {
 		console.log(`Event: ${event}; args: ${JSON.stringify(args)}`);
 	});
-
 
 	console.log("Connection established to socket: " + socket.id);
 });
